@@ -1,0 +1,13 @@
+[project]
+name = "jevtron-sdk"
+version = "0.1.0"
+description = "Contestant SDK for the Jev-Tron Arena"
+requires-python = ">=3.11"
+dependencies = ["httpx>=0.27", "websockets>=12"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["jevtron_sdk"]
