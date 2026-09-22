@@ -1,30 +1,32 @@
-PY ?= .venv/bin/python
-PIP ?= .venv/bin/pip
+# Thin aliases over the turbo tasks, so `make` keeps working.
+.PHONY: install test build sim dryrun clone prod spectator dev clean
 
-.PHONY: install test sim dryrun clone prod spectator clean
-
-install:            ## venv + server deps + editable SDK
-	python3 -m venv .venv
-	$(PIP) install -q -r requirements.txt
-	$(PIP) install -q -e ./sdk
+install:            ## venv + python deps + SDK + node deps
+	npm run setup
 
 test:               ## engine + ws + proxy + sdk
-	$(PY) -m pytest tests -q
+	npx turbo test
+
+build:              ## spectator production build (cached)
+	npx turbo build
+
+dev:                ## clone server + spectator, in parallel
+	npx turbo dev
 
 sim:                ## 4 random bots, ASCII frames, no server
-	$(PY) -m server.sim
+	npm run sim
 
 dryrun:             ## prod server + mock Jev + full tournament + leaderboard
-	$(PY) tools/dryrun.py
+	npm run dryrun
 
-clone:              ## free-play server on :8000
-	MODE=clone $(PY) -m uvicorn server.app:app --host 0.0.0.0 --port 8000
+clone:              ## free-play server    (SERVER_PORT, default 8000)
+	npm run clone
 
-prod:               ## scored server on :8000
-	MODE=prod $(PY) -m uvicorn server.app:app --host 0.0.0.0 --port 8000
+prod:               ## scored server       (SERVER_PORT, default 8000)
+	npm run prod
 
-spectator:          ## next dev on :3000
-	cd spectator && npm install && npm run dev
+spectator:          ## next dev            (SPECTATOR_PORT, default 3000)
+	npm run spectator
 
 clean:
-	rm -rf replays/*.json spectator/.next
+	rm -rf replays/*.json spectator/.next .turbo node_modules/.cache

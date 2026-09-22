@@ -1,0 +1,26 @@
+{
+  "name": "jevtron",
+  "private": true,
+  "workspaces": [
+    "server",
+    "spectator"
+  ],
+  "packageManager": "npm@10.9.3",
+  "scripts": {
+    "setup": "python3 -m venv .venv && .venv/bin/pip install -q -r requirements.txt -e ./sdk && npm install",
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "turbo test",
+    "sim": "npm run sim -w @jevtron/server",
+    "dryrun": "npm run dryrun -w @jevtron/server",
+    "clone": "npm run clone -w @jevtron/server",
+    "prod": "npm run prod -w @jevtron/server",
+    "spectator": "npm run dev -w @jevtron/spectator"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

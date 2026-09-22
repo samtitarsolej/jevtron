@@ -2,10 +2,11 @@
 
 ## Before the hackathon
 ```bash
-make install
-make test            # everything green
-make dryrun          # 3-round tournament, mock Jev, unattended
+npm run setup        # venv + deps + SDK + node modules
+npx turbo test       # everything green
+npm run dryrun       # 3-round tournament, mock Jev, unattended
 ```
+One command for the room: `SERVER_PORT=8001 npx turbo dev` runs server and spectator together.
 Set the real brain: `export JEV_API_KEY=... JEV_BASE_URL=...` (leave `JEV_MOCK` unset).
 
 ## Two servers

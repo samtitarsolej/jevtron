@@ -1,11 +1,11 @@
 {
-  "name": "jevtron-spectator",
+  "name": "@jevtron/spectator",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "next dev -p ${SPECTATOR_PORT:-3000}",
     "build": "next build",
-    "start": "next start -p 3000"
+    "start": "next start -p ${SPECTATOR_PORT:-3000}"
   },
   "dependencies": {
     "next": "^14.2.35",

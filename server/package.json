@@ -1,0 +1,14 @@
+{
+  "name": "@jevtron/server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Task shim: turbo drives the Python server through the repo venv.",
+  "scripts": {
+    "dev": "cd .. && MODE=clone .venv/bin/python -m uvicorn server.app:app --host 0.0.0.0 --port ${SERVER_PORT:-8000} --reload",
+    "test": "cd .. && .venv/bin/python -m pytest tests -q",
+    "sim": "cd .. && .venv/bin/python -m server.sim",
+    "dryrun": "cd .. && .venv/bin/python tools/dryrun.py",
+    "clone": "cd .. && MODE=clone .venv/bin/python -m uvicorn server.app:app --host 0.0.0.0 --port ${SERVER_PORT:-8000}",
+    "prod": "cd .. && MODE=prod .venv/bin/python -m uvicorn server.app:app --host 0.0.0.0 --port ${SERVER_PORT:-8000}"
+  }
+}
