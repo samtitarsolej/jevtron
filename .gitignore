@@ -5,3 +5,4 @@ replays/*.json
 node_modules/
 .next/
 .env
+!replays/.gitkeep

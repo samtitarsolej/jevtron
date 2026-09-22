@@ -1,0 +1,33 @@
+# docker compose up clone   -> free-play server for contestants (no budget, no scoring)
+# docker compose up prod    -> the real thing (budget enforced, scoring on)
+services:
+  clone:
+    build: .
+    environment:
+      MODE: clone
+      JEV_MOCK: "${JEV_MOCK:-0}"
+      JEV_API_KEY: "${JEV_API_KEY:-}"
+      JEV_BASE_URL: "${JEV_BASE_URL:-https://api.typesafe.ai/v1/jev}"
+      GM_PASSWORD: "${GM_PASSWORD:-jev}"
+    ports: ["8000:8000"]
+    volumes: ["./replays:/app/replays"]
+
+  prod:
+    build: .
+    environment:
+      MODE: prod
+      JEV_MOCK: "${JEV_MOCK:-0}"
+      JEV_API_KEY: "${JEV_API_KEY:-}"
+      JEV_BASE_URL: "${JEV_BASE_URL:-https://api.typesafe.ai/v1/jev}"
+      GM_PASSWORD: "${GM_PASSWORD:-jev}"
+    ports: ["8001:8000"]
+    volumes: ["./replays:/app/replays"]
+
+  spectator:
+    image: node:22-slim
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    environment:
+      NEXT_PUBLIC_SERVER: "${NEXT_PUBLIC_SERVER:-http://localhost:8001}"
+    ports: ["3000:3000"]
+    volumes: ["./spectator:/app"]

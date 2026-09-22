@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import traceback
 import typing
 from dataclasses import dataclass
@@ -31,9 +32,15 @@ DELTA = {"N": (0, -1), "S": (0, 1), "E": (1, 0), "W": (-1, 0)}
 OPPOSITE = {"N": "S", "S": "N", "E": "W", "W": "E"}
 FREE = ".*?"  # "?" is fogged: unknown, so optimistically walkable
 
-_SERVER = ""
-_TOKEN = ""
+# Credentials are per-thread so several bots can share one process (the dry run
+# does exactly that); the last Arena built also becomes the process-wide default.
+_local = threading.local()
+_default: tuple[str, str] = ("", "")
 last_call: dict = {}  # tokens/latency of the most recent jev() call
+
+
+def _creds() -> tuple[str, str]:
+    return getattr(_local, "creds", None) or _default
 
 
 @dataclass
@@ -122,6 +129,7 @@ def _coerce(text: str, schema):
 def jev(prompt: str, schema=None, max_tokens: int | None = None, timeout: float = 20.0):
     """Ask Jev through the arena proxy. None = out of budget, timeout or junk."""
     global last_call
+    server, token = _creds()
     body: dict = {"prompt": prompt}
     if schema is not None:
         body["schema"] = getattr(schema, "__name__", str(schema))
@@ -129,7 +137,7 @@ def jev(prompt: str, schema=None, max_tokens: int | None = None, timeout: float 
         body["max_tokens"] = max_tokens
     try:
         r = httpx.post(
-            f"{_SERVER}/jev", json=body, headers={"player-token": _TOKEN}, timeout=timeout
+            f"{server}/jev", json=body, headers={"player-token": token}, timeout=timeout
         )
     except Exception:
         return None
@@ -142,9 +150,9 @@ def jev(prompt: str, schema=None, max_tokens: int | None = None, timeout: float 
 
 class Arena:
     def __init__(self, server_url: str, player_token: str, verbose: bool = True):
-        global _SERVER, _TOKEN
+        global _default
         self.http = server_url.rstrip("/")
-        _SERVER, _TOKEN = self.http, player_token
+        _local.creds = _default = (self.http, player_token)
         self.token = player_token
         self.verbose = verbose
         self.decide: Callable[[State], str] | None = None

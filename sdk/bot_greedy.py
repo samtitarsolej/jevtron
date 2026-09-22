@@ -4,7 +4,7 @@ import os
 
 from jevtron_sdk import DELTA, Arena
 
-arena = Arena(os.getenv("JEVTRON_SERVER", "http://localhost:8000"), os.environ["PLAYER_TOKEN"])
+arena = Arena(os.getenv("JEVTRON_SERVER", "http://localhost:8000"), os.getenv("PLAYER_TOKEN", ""))
 
 
 def room(state, start):

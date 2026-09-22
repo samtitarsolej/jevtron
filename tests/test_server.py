@@ -173,3 +173,30 @@ def _match(match_id):
     from server.matches import MATCHES
 
     return MATCHES[match_id]
+
+
+def test_spectator_sees_the_arena_and_meters(server, gm):
+    m = new_match(gm, ["a", "b"], max_ticks=8)
+    ws_url = server.replace("http", "ws")
+    with connect(f"{ws_url}/ws/spectate?match_id={m['match_id']}") as spec:
+        json.loads(spec.recv(timeout=10))  # first frame on join
+        threads, _ = run_bots(
+            server, m["tokens"], {p: (lambda s: (s.safe_moves() or [s.dir])[0]) for p in m["players"]}
+        )
+        wait_connected(gm, m["match_id"], 2)
+        gm.post(f"/matches/{m['match_id']}/start").raise_for_status()
+        seen = []
+        while True:
+            frame = json.loads(spec.recv(timeout=30))
+            seen.append(frame)
+            if frame["status"] == "done":
+                break
+        for t in threads:
+            t.join(timeout=30)
+
+    last = seen[-1]
+    assert len(last["state"]["grid"]) == 20 and len(last["state"]["grid"][0]) == 20
+    assert {x["id"] for x in last["meters"]} == {"a", "b"}
+    assert all("tokens_used" in x and "connected" in x for x in last["meters"])
+    assert last["result"]["players"]
+    assert any(f["state"]["tick"] > 0 for f in seen)

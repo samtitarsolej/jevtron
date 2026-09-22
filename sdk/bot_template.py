@@ -7,7 +7,7 @@ import os
 
 from jevtron_sdk import Arena, Move, jev
 
-arena = Arena(os.getenv("JEVTRON_SERVER", "http://localhost:8000"), os.environ["PLAYER_TOKEN"])
+arena = Arena(os.getenv("JEVTRON_SERVER", "http://localhost:8000"), os.getenv("PLAYER_TOKEN", ""))
 
 
 @arena.on_tick
