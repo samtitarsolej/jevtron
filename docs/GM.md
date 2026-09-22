@@ -18,6 +18,31 @@ Set the real brain: `export JEV_API_KEY=... JEV_BASE_URL=...` (leave `JEV_MOCK` 
 Spectator: `docker compose up spectator` → http://localhost:3000 (`NEXT_PUBLIC_SERVER` points it at a server).
 GM password: `GM_PASSWORD` env, default `jev`. Everything below needs header `x-gm-password`.
 
+## What to send each contestant
+The spectator's **GM** tab generates this per player — hit **invite**, paste into their DM:
+
+```
+Jev-Tron Arena — you are "alice"
+
+Server : http://10.51.10.128:8000
+Token  : 3fa2c1d0-alice
+Match  : 3fa2c1d0
+
+git clone <repo> && cd jevtron
+python3 -m venv .venv && . .venv/bin/activate && pip install -e ./sdk
+PLAYER_TOKEN=3fa2c1d0-alice JEVTRON_SERVER=http://10.51.10.128:8000 python sdk/bot_template.py
+
+Then copy sdk/bot_template.py to my_bot.py and make it yours.
+
+Rules: docs/RULES.md · SDK: docs/SDK.md
+Budget: 20000 tokens/match · Turn deadline: 3000 ms
+```
+
+Four things they actually need: **repo · server URL · their token · RULES.md**.
+The server URL uses the LAN IP the server reports in `/health` — not `localhost`.
+Tokens are `<match_id>-<player_id>` and are per match, so every new match means new invites
+(**copy all** gives you all four at once).
+
 ## Running a match
 ```bash
 # 1. create (returns a player_token per contestant — hand them out)
@@ -28,7 +53,10 @@ curl -XPOST localhost:8001/matches -H 'x-gm-password: jev' -H 'content-type: app
 curl -XPOST localhost:8001/matches/<id>/start -H 'x-gm-password: jev'
 ```
 Or a whole tournament: `POST /tournament {"players":[...], "rounds":3}` — seating rotates each round.
-The spectator's **GM** tab does all of this with buttons.
+
+Easier: the spectator's **GM** tab does all of it — create match or tournament, watch the
+`3/4 connected` counter, start, fire curveballs, copy invites, set style bonuses. Password and
+player list are remembered in the browser.
 
 ## Curveballs (mid-match, live)
 ```bash

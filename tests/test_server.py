@@ -200,3 +200,19 @@ def test_spectator_sees_the_arena_and_meters(server, gm):
     assert all("tokens_used" in x and "connected" in x for x in last["meters"])
     assert last["result"]["players"]
     assert any(f["state"]["tick"] > 0 for f in seen)
+
+
+def test_tokens_endpoint_is_gm_only(server, gm):
+    m = new_match(gm, ["a", "b"])
+    assert httpx.get(f"{server}/matches/{m['match_id']}/tokens").status_code == 403
+    assert gm.get(f"/matches/{m['match_id']}/tokens").json()["tokens"] == m["tokens"]
+    health = httpx.get(f"{server}/health").json()
+    assert health["lan_ip"] and health["deadline_ms"] > 0
+
+
+def test_match_always_gets_a_seed(gm):
+    """An explicit `seed: null` over REST must not leave the engine unseeded."""
+    m = gm.post("/matches", json={"players": ["a", "b"], "seed": None}).json()
+    assert isinstance(m["config"]["seed"], int)
+    m2 = gm.post("/matches", json={"players": ["a", "b"], "seed": 99}).json()
+    assert m2["config"]["seed"] == 99

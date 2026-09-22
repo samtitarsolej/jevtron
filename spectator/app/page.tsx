@@ -182,51 +182,201 @@ function Replay() {
   );
 }
 
-function GM() {
-  const [pw, setPw] = useState("");
-  const [players, setPlayers] = useState("alice,bob,cid,dee");
-  const [matchId, setMatchId] = useState("");
-  const [out, setOut] = useState<any>(null);
-  const call = (path: string, body?: any) =>
-    fetch(`${SERVER}${path}`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-gm-password": pw },
-      body: JSON.stringify(body ?? {}),
-    }).then((r) => r.json()).then(setOut).catch((e) => setOut(String(e)));
+const btn: React.CSSProperties = {
+  background: "#1b2130", color: "#d7dce5", border: "1px solid #2a3040",
+  borderRadius: 4, padding: "6px 10px", cursor: "pointer",
+};
+const input: React.CSSProperties = {
+  background: "#0f131c", color: "#d7dce5", border: "1px solid #2a3040",
+  borderRadius: 4, padding: "6px 8px",
+};
+const card: React.CSSProperties = { border: "1px solid #232a38", borderRadius: 6, padding: 12 };
 
-  const btn = { background: "#1b2130", color: "#d7dce5", border: "1px solid #2a3040", borderRadius: 4, padding: "6px 10px", cursor: "pointer" };
-  return (
-    <div style={{ display: "grid", gap: 10, maxWidth: 640 }}>
-      <input placeholder="GM password" value={pw} onChange={(e) => setPw(e.target.value)} type="password" />
-      <input placeholder="players, comma separated" value={players} onChange={(e) => setPlayers(e.target.value)} />
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button style={btn} onClick={() => call("/matches", { players: players.split(",").map((s) => s.trim()) })}>
-          create match
-        </button>
-        <input placeholder="match id" value={matchId} onChange={(e) => setMatchId(e.target.value)} />
-        <button style={btn} onClick={() => call(`/matches/${matchId}/start`)}>start</button>
-      </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button style={btn} onClick={() => call(`/matches/${matchId}/curveball`, { fog_radius: 5 })}>fog 5</button>
-        <button style={btn} onClick={() => call(`/matches/${matchId}/curveball`, { shrink_every: 20 })}>shrink /20</button>
-        <button style={btn} onClick={() => call(`/matches/${matchId}/curveball`, { bonus_tiles: 5 })}>+5 bonus tiles</button>
-      </div>
-      <StyleBonus call={call} btn={btn} />
-      <pre style={{ color: "#8b94a7", maxHeight: 240, overflow: "auto" }}>{JSON.stringify(out, null, 1)}</pre>
-    </div>
-  );
+function useStored(key: string, initial: string) {
+  const [v, setV] = useState(initial);
+  useEffect(() => { const s = localStorage.getItem(key); if (s !== null) setV(s); }, [key]);
+  const set = (x: string) => { setV(x); localStorage.setItem(key, x); };
+  return [v, set] as const;
 }
 
-function StyleBonus({ call, btn }: { call: any; btn: any }) {
-  const [pid, setPid] = useState("");
-  const [value, setValue] = useState("0.5");
+function inviteFor(pid: string, token: string, matchId: string, url: string, repo: string, health: any) {
+  return [
+    `Jev-Tron Arena — you are "${pid}"`,
+    ``,
+    `Server : ${url}`,
+    `Token  : ${token}`,
+    `Match  : ${matchId}`,
+    ``,
+    `git clone ${repo} && cd jevtron`,
+    `python3 -m venv .venv && . .venv/bin/activate && pip install -e ./sdk`,
+    `PLAYER_TOKEN=${token} JEVTRON_SERVER=${url} python sdk/bot_template.py`,
+    ``,
+    `Then copy sdk/bot_template.py to my_bot.py and make it yours.`,
+    ``,
+    `Rules: docs/RULES.md · SDK: docs/SDK.md`,
+    `Budget: ${health?.budget ?? "unlimited (clone server)"} tokens/match · ` +
+      `Turn deadline: ${health?.deadline_ms ?? 3000} ms`,
+  ].join("\n");
+}
+
+function GM() {
+  const [pw, setPw] = useStored("jevtron.gm.pw", "");
+  const [repo, setRepo] = useStored("jevtron.repo", "<repo url>");
+  const [players, setPlayers] = useStored("jevtron.players", "alice,bob,cid,dee");
+  const [rounds, setRounds] = useStored("jevtron.rounds", "1");
+  const [deadline, setDeadline] = useStored("jevtron.deadline", "3000");
+  const [list, setList] = useState<any[]>([]);
+  const [selected, setSelected] = useState("");
+  const [tokens, setTokens] = useState<Record<string, string>>({});
+  const [health, setHealth] = useState<any>(null);
+  const [note, setNote] = useState("");
+
+  const headers = { "content-type": "application/json", "x-gm-password": pw };
+  const post = async (path: string, body?: any) => {
+    const r = await fetch(`${SERVER}${path}`, { method: "POST", headers, body: JSON.stringify(body ?? {}) });
+    const d = await r.json().catch(() => ({}));
+    setNote(r.ok ? "ok" : `${r.status}: ${d.detail ?? "failed"}`);
+    return r.ok ? d : null;
+  };
+
+  useEffect(() => {
+    fetch(`${SERVER}/health`).then((r) => r.json()).then(setHealth).catch(() => {});
+    const load = () => fetch(`${SERVER}/matches`).then((r) => r.json())
+      .then((d) => setList(d.matches)).catch(() => {});
+    load();
+    const t = setInterval(load, 2000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (!selected || !pw) return;
+    fetch(`${SERVER}/matches/${selected}/tokens`, { headers })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setTokens(d.tokens))
+      .catch(() => {});
+  }, [selected, pw]);
+
+  const joinUrl = health?.lan_ip ? SERVER.replace(/\/\/[^:/]+/, `//${health.lan_ip}`) : SERVER;
+  const match = list.find((m) => m.match_id === selected);
+  const connected = match ? match.meters.filter((x: any) => x.connected).length : 0;
+  const ready = match && connected === match.players.length;
+  const copy = (text: string, what: string) => {
+    navigator.clipboard.writeText(text).then(() => setNote(`copied ${what}`), () => setNote("copy blocked"));
+  };
+
+  const create = async () => {
+    const ids = players.split(",").map((s) => s.trim()).filter(Boolean);
+    const body: any = { players: ids, deadline_ms: Number(deadline) };
+    const n = Number(rounds);
+    const d = n > 1 ? await post("/tournament", { ...body, rounds: n }) : await post("/matches", body);
+    const made = d && (d.matches ? d.matches[0] : d);
+    if (made) { setSelected(made.match_id); setTokens(made.tokens); }
+  };
+
   return (
-    <div style={{ display: "flex", gap: 8 }}>
-      <input placeholder="player id" value={pid} onChange={(e) => setPid(e.target.value)} />
-      <input placeholder="0..1" value={value} onChange={(e) => setValue(e.target.value)} style={{ width: 70 }} />
-      <button style={btn} onClick={() => call(`/players/${pid}/style_bonus`, { value: Number(value) })}>
-        set style bonus
-      </button>
+    <div style={{ display: "grid", gap: 16, maxWidth: 900 }}>
+      <div style={{ ...card, display: "grid", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input style={{ ...input, flex: 1 }} type="password" placeholder="GM password"
+                 value={pw} onChange={(e) => setPw(e.target.value)} />
+          <input style={{ ...input, flex: 2 }} placeholder="repo url for the invite"
+                 value={repo} onChange={(e) => setRepo(e.target.value)} />
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <input style={{ ...input, flex: 2 }} placeholder="players, comma separated"
+                 value={players} onChange={(e) => setPlayers(e.target.value)} />
+          <label style={{ fontSize: 12, color: "#8b94a7" }}>rounds</label>
+          <input style={{ ...input, width: 60 }} value={rounds} onChange={(e) => setRounds(e.target.value)} />
+          <label style={{ fontSize: 12, color: "#8b94a7" }}>deadline ms</label>
+          <input style={{ ...input, width: 80 }} value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+          <button style={btn} onClick={create}>create {Number(rounds) > 1 ? "tournament" : "match"}</button>
+        </div>
+        <div style={{ fontSize: 12, color: "#8b94a7" }}>
+          contestants connect to <b>{joinUrl}</b>
+          {health && ` · ${health.mode} mode${health.jev_mock ? " · MOCK Jev" : ""}`}
+          {note && <span style={{ color: note === "ok" || note.startsWith("copied") ? "#8aff80" : "#ff4d6d" }}> · {note}</span>}
+        </div>
+      </div>
+
+      <div style={card}>
+        <div style={{ color: "#8b94a7", fontSize: 12, marginBottom: 8 }}>matches — click one to run it</div>
+        <div style={{ display: "grid", gap: 4, maxHeight: 200, overflow: "auto" }}>
+          {list.length === 0 && <span style={{ color: "#6a7385" }}>none yet</span>}
+          {list.map((m) => (
+            <div key={m.match_id} onClick={() => setSelected(m.match_id)}
+                 style={{
+                   display: "flex", gap: 12, cursor: "pointer", padding: "4px 6px", borderRadius: 4,
+                   background: m.match_id === selected ? "#2a3040" : "transparent",
+                 }}>
+              <span style={{ width: 80 }}>{m.match_id}</span>
+              <span style={{ width: 70, color: m.status === "running" ? "#8aff80" : "#8b94a7" }}>{m.status}</span>
+              <span style={{ width: 70 }}>tick {m.tick}</span>
+              <span style={{ width: 90 }}>
+                {m.meters.filter((x: any) => x.connected).length}/{m.players.length} connected
+              </span>
+              <span style={{ color: "#8b94a7" }}>{m.players.join(", ")}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {match && (
+        <>
+          <div style={{ ...card, display: "grid", gap: 10 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <b>{match.match_id}</b>
+              <span style={{ color: ready ? "#8aff80" : "#ffd166" }}>
+                {connected}/{match.players.length} connected
+              </span>
+              <button style={{ ...btn, opacity: match.status === "lobby" ? 1 : 0.4 }}
+                      disabled={match.status !== "lobby"}
+                      onClick={() => post(`/matches/${match.match_id}/start`)}>
+                {ready ? "start match" : `start anyway (${match.players.length - connected} missing)`}
+              </button>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 12, color: "#8b94a7", alignSelf: "center" }}>curveballs:</span>
+              <button style={btn} onClick={() => post(`/matches/${match.match_id}/curveball`, { fog_radius: 5 })}>fog 5</button>
+              <button style={btn} onClick={() => post(`/matches/${match.match_id}/curveball`, { shrink_every: 20 })}>shrink /20</button>
+              <button style={btn} onClick={() => post(`/matches/${match.match_id}/curveball`, { bonus_tiles: 5 })}>+5 bonus</button>
+              <button style={btn} onClick={() => post(`/matches/${match.match_id}/curveball`, { fog_radius: 0, shrink_every: 0 })}>clear</button>
+            </div>
+          </div>
+
+          <div style={{ ...card, display: "grid", gap: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "#8b94a7", fontSize: 12 }}>invites — one per contestant</span>
+              <button style={btn} onClick={() => copy(
+                Object.entries(tokens).map(([pid, t]) =>
+                  inviteFor(pid, t, match.match_id, joinUrl, repo, health)).join("\n\n---\n\n"),
+                "all invites")}>copy all</button>
+            </div>
+            {Object.entries(tokens).map(([pid, token]) => (
+              <div key={pid} style={{ display: "grid", gap: 4 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <b style={{ width: 90 }}>{pid}</b>
+                  <code style={{ color: "#8b94a7", flex: 1 }}>{token}</code>
+                  <button style={btn} onClick={() => copy(token, `${pid}'s token`)}>token</button>
+                  <button style={btn} onClick={() => copy(
+                    inviteFor(pid, token, match.match_id, joinUrl, repo, health), `${pid}'s invite`)}>invite</button>
+                  <input style={{ ...input, width: 60 }} placeholder="style"
+                         onKeyDown={(e: any) => e.key === "Enter" &&
+                           post(`/players/${pid}/style_bonus`, { value: Number(e.target.value) })} />
+                </div>
+              </div>
+            ))}
+            {!Object.keys(tokens).length && (
+              <span style={{ color: "#6a7385" }}>enter the GM password to load tokens</span>
+            )}
+          </div>
+
+          {match.result && (
+            <pre style={{ ...card, color: "#8b94a7", overflow: "auto", maxHeight: 220 }}>
+              {JSON.stringify(match.result.players, null, 1)}
+            </pre>
+          )}
+        </>
+      )}
     </div>
   );
 }

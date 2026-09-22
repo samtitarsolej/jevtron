@@ -268,7 +268,7 @@ def create_match(player_ids: list[str], deadline_ms: int | None = None, **cfg_ov
         w=c["grid"]["w"],
         h=c["grid"]["h"],
         max_ticks=c["max_ticks"],
-        seed=cfg_overrides.pop("seed", len(MATCHES) + 1),
+        seed=cfg_overrides.pop("seed", None) or len(MATCHES) + 1,  # explicit null = auto-seed
         fog_radius=c["curveballs"]["fog_radius"],
         shrink_every=c["curveballs"]["shrink_every"],
         bonus_tiles=c["curveballs"]["bonus_tiles"],

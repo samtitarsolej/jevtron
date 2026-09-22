@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import random
+import socket
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -65,9 +66,27 @@ def _summary(m: matches.Match) -> dict:
     }
 
 
+def lan_ip() -> str:
+    """The address contestants can actually reach — not 127.0.0.1."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        try:
+            s.connect(("8.8.8.8", 80))  # no packet is sent; just picks the route
+            return s.getsockname()[0]
+        except OSError:
+            return "127.0.0.1"
+
+
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "mode": config.MODE, "jev_mock": jev.MOCK, "matches": len(matches.MATCHES)}
+    return {
+        "ok": True,
+        "mode": config.MODE,
+        "jev_mock": jev.MOCK,
+        "matches": len(matches.MATCHES),
+        "lan_ip": lan_ip(),
+        "budget": config.budget() if config.scored() else None,
+        "deadline_ms": config.CONFIG["deadline_ms"],
+    }
 
 
 @app.post("/matches", dependencies=[Depends(gm)])
@@ -92,6 +111,12 @@ def list_matches() -> dict:
 @app.get("/matches/{match_id}")
 def get_match(match_id: str) -> dict:
     return _summary(_find(match_id))
+
+
+@app.get("/matches/{match_id}/tokens", dependencies=[Depends(gm)])
+def get_tokens(match_id: str) -> dict:
+    """GM only: the join tokens, for handing out."""
+    return {"match_id": match_id, "tokens": matches.tokens_for(_find(match_id))}
 
 
 @app.post("/matches/{match_id}/start", dependencies=[Depends(gm)])
